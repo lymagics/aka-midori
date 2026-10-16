@@ -1,14 +1,14 @@
 name: Aka Midori TDD
-description: Allows a pull request one commit, or two where the first fails the tests and the second fixes them.
+description: Runs your tests and allows a pull request one commit, or two where the first fails the tests and the second fixes them.
 branding:
   icon: git-commit
   color: green
 inputs:
   test:
-    description: Command that runs the tests; the first of two commits must make it fail.
+    description: Command that runs the tests; the last commit must pass it, and the first of two must fail it.
     required: true
   install:
-    description: Command that installs dependencies before the tests run; it must succeed.
+    description: Command that installs dependencies before each test run; it must succeed.
     required: false
     default: ""
   base:
@@ -29,8 +29,8 @@ runs:
         HEAD: ${{ inputs.head }}
       run: |
         if [ -z "$BASE" ] || [ -z "$HEAD" ]; then
-          echo "::error::Aka Midori needs base and head commits; run it on pull_request or pass them as inputs."
-          exit 1
+          echo "count=0" >> "$GITHUB_OUTPUT"
+          exit 0
         fi
         if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
           git fetch --quiet --no-tags --unshallow origin
@@ -69,3 +69,12 @@ runs:
       env:
         ORIGIN: ${{ steps.commits.outputs.origin }}
       run: git checkout --quiet --force "$ORIGIN"
+    - if: inputs.install != ''
+      shell: bash
+      env:
+        INSTALL: ${{ inputs.install }}
+      run: eval "$INSTALL"
+    - shell: bash
+      env:
+        TEST: ${{ inputs.test }}
+      run: eval "$TEST"

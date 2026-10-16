@@ -21,12 +21,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: passes a single commit
+          - name: passes a single green commit
             files: fix
             outcome: success
+          - name: fails a single red commit
+            files: test
+            outcome: failure
           - name: passes a red commit followed by a green one
             files: test fix
             outcome: success
+          - name: fails two red commits
+            files: test polish
+            outcome: failure
           - name: fails two green commits
             files: fix polish
             outcome: failure
@@ -36,6 +42,14 @@ jobs:
           - name: fails when dependencies do not install
             files: test fix
             install: "false"
+            outcome: failure
+          - name: passes green tests outside a pull request
+            files: test polish fix
+            outside: true
+            outcome: success
+          - name: fails red tests outside a pull request
+            files: test polish
+            outside: true
             outcome: failure
     steps:
       - uses: actions/checkout@v7
@@ -57,7 +71,7 @@ jobs:
         uses: ./
         continue-on-error: true
         with:
-          base: ${{ steps.history.outputs.base }}
+          base: ${{ matrix.outside && steps.history.outputs.head || steps.history.outputs.base }}
           head: ${{ steps.history.outputs.head }}
           install: ${{ matrix.install || 'true' }}
           test: test -f fix
