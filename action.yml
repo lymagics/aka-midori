@@ -1,4 +1,4 @@
-name: Aka Midori
+name: Aka Midori TDD
 description: Allows a pull request one commit, or two where the first fails the tests and the second fixes them.
 branding:
   icon: git-commit
