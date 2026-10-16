@@ -1,0 +1,68 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scenario:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: passes a single commit
+            files: fix
+            outcome: success
+          - name: passes a red commit followed by a green one
+            files: test fix
+            outcome: success
+          - name: fails two green commits
+            files: fix polish
+            outcome: failure
+          - name: fails three commits
+            files: test fix polish
+            outcome: failure
+          - name: fails when dependencies do not install
+            files: test fix
+            install: "false"
+            outcome: failure
+    steps:
+      - uses: actions/checkout@v7
+      - id: history
+        name: Commit the scenario on top of the checkout
+        env:
+          FILES: ${{ matrix.files }}
+        run: |
+          git config user.name aka-midori
+          git config user.email aka-midori@users.noreply.github.com
+          echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          for file in $FILES; do
+            touch "$file"
+            git add "$file"
+            git commit --quiet --message "Add $file"
+          done
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - id: action
+        uses: ./
+        continue-on-error: true
+        with:
+          base: ${{ steps.history.outputs.base }}
+          head: ${{ steps.history.outputs.head }}
+          install: ${{ matrix.install || 'true' }}
+          test: test -f fix
+      - name: Expect the action to end with ${{ matrix.outcome }}
+        if: steps.action.outcome != matrix.outcome
+        run: |
+          echo "::error::The action ended with ${{ steps.action.outcome }}, but ${{ matrix.outcome }} was expected."
+          exit 1
