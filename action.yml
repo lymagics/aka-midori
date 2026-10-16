@@ -1,0 +1,71 @@
+name: Aka Midori
+description: Allows a pull request one commit, or two where the first fails the tests and the second fixes them.
+branding:
+  icon: git-commit
+  color: green
+inputs:
+  test:
+    description: Command that runs the tests; the first of two commits must make it fail.
+    required: true
+  install:
+    description: Command that installs dependencies before the tests run; it must succeed.
+    required: false
+    default: ""
+  base:
+    description: Commit the pull request starts from.
+    required: false
+    default: ${{ github.event.pull_request.base.sha }}
+  head:
+    description: Last commit of the pull request.
+    required: false
+    default: ${{ github.event.pull_request.head.sha }}
+runs:
+  using: composite
+  steps:
+    - id: commits
+      shell: bash
+      env:
+        BASE: ${{ inputs.base }}
+        HEAD: ${{ inputs.head }}
+      run: |
+        if [ -z "$BASE" ] || [ -z "$HEAD" ]; then
+          echo "::error::Aka Midori needs base and head commits; run it on pull_request or pass them as inputs."
+          exit 1
+        fi
+        if [ "$(git rev-parse --is-shallow-repository)" = true ]; then
+          git fetch --quiet --no-tags --unshallow origin
+        fi
+        count=$(git rev-list --count "$BASE..$HEAD")
+        {
+          echo "count=$count"
+          echo "first=$(git rev-list --reverse "$BASE..$HEAD" | head -n 1)"
+          echo "origin=$(git symbolic-ref --quiet --short HEAD || git rev-parse HEAD)"
+        } >> "$GITHUB_OUTPUT"
+        if [ "$count" -gt 2 ]; then
+          echo "::error::The pull request has $count commits, but only one, or two (a failing test, then its fix), are allowed."
+          exit 1
+        fi
+    - if: steps.commits.outputs.count == '2'
+      shell: bash
+      env:
+        FIRST: ${{ steps.commits.outputs.first }}
+      run: git checkout --quiet "$FIRST"
+    - if: steps.commits.outputs.count == '2' && inputs.install != ''
+      shell: bash
+      env:
+        INSTALL: ${{ inputs.install }}
+      run: eval "$INSTALL"
+    - if: steps.commits.outputs.count == '2'
+      shell: bash
+      env:
+        TEST: ${{ inputs.test }}
+      run: |
+        if eval "$TEST"; then
+          echo "::error::The first commit passes the tests, but it must add a failing test."
+          exit 1
+        fi
+    - if: always() && steps.commits.outputs.count == '2'
+      shell: bash
+      env:
+        ORIGIN: ${{ steps.commits.outputs.origin }}
+      run: git checkout --quiet --force "$ORIGIN"
