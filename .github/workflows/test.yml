@@ -80,3 +80,37 @@ jobs:
         run: |
           echo "::error::The action ended with ${{ steps.action.outcome }}, but ${{ matrix.outcome }} was expected."
           exit 1
+
+  keeps-changes:
+    name: keeps changes made before it runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - id: history
+        name: Commit a red test and its fix on top of the checkout
+        run: |
+          git config user.name aka-midori
+          git config user.email aka-midori@users.noreply.github.com
+          echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          for file in sketch remedy; do
+            touch "$file"
+            git add "$file"
+            git commit --quiet --message "Add $file"
+          done
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Edit a tracked file before the action
+        run: echo "stamped by an earlier step" > sketch
+      - id: action
+        uses: ./
+        continue-on-error: true
+        with:
+          base: ${{ steps.history.outputs.base }}
+          head: ${{ steps.history.outputs.head }}
+          install: "true"
+          test: test -f remedy && grep -q stamped sketch
+      - name: Expect the action to keep the edit and succeed
+        if: steps.action.outcome != 'success'
+        run: |
+          echo "::error::The action ended with ${{ steps.action.outcome }}, because it dropped the edit made to a tracked file before it ran."
+          exit 1
