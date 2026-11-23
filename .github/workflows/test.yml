@@ -117,10 +117,10 @@ jobs:
           echo "::error::The action ended with ${{ steps.action.outcome }}, because it dropped the edit made to a tracked file before it ran."
           exit 1
 
-  # TODO: Bug: the first commit counts as green when only an early line of a multi-line test command fails, see PLACEHOLDER
+  # TODO: Bug: the first commit counts as green when only an early line of a multi-line test command fails, see https://github.com/lymagics/aka-midori/pull/9
   multiline-test:
     name: fails the first commit when any line of the test command fails
-    if: false # Bug: the first commit counts as green when only an early line of a multi-line test command fails, see PLACEHOLDER
+    if: false # Bug: the first commit counts as green when only an early line of a multi-line test command fails, see https://github.com/lymagics/aka-midori/pull/9
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
