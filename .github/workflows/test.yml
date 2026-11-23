@@ -116,3 +116,39 @@ jobs:
         run: |
           echo "::error::The action ended with ${{ steps.action.outcome }}, because it dropped the edit made to a tracked file before it ran."
           exit 1
+
+  # TODO: Bug: the first commit counts as green when only an early line of a multi-line test command fails, see PLACEHOLDER
+  multiline-test:
+    name: fails the first commit when any line of the test command fails
+    if: false # Bug: the first commit counts as green when only an early line of a multi-line test command fails, see PLACEHOLDER
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - id: history
+        name: Commit a red test and its fix on top of the checkout
+        run: |
+          git config user.name aka-midori
+          git config user.email aka-midori@users.noreply.github.com
+          echo "base=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          for file in riddle answer; do
+            touch "$file"
+            git add "$file"
+            git commit --quiet --message "Add $file"
+          done
+          echo "head=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - id: action
+        uses: ./
+        continue-on-error: true
+        with:
+          base: ${{ steps.history.outputs.base }}
+          head: ${{ steps.history.outputs.head }}
+          install: "true"
+          test: |
+            test -f answer
+            test -f riddle
+      - name: Expect the action to see the red commit fail and succeed
+        if: steps.action.outcome != 'success'
+        run: |
+          echo "::error::The action ended with ${{ steps.action.outcome }}, because it counted the first commit as green although its first test line failed."
+          exit 1
